@@ -11,18 +11,21 @@ chat-panel attach control.
 Subcommands:
     convert   <docx> [--out DIR]
     scaffold  <package_dir> <target_dir> --app-name NAME --scope-name SCOPE
-              [--package-name NAME] [--template T] [--auth ALIAS] [--env PATH]
-              [--skip-install] [--verify-build]
+              [--package-name NAME] [--template T] [--skip-install] [--verify-build]
     publish   <target_dir> --repo NAME [--owner OWNER] [--public] [--message MSG]
     pipeline  <docx> --target-dir DIR --app-name NAME --scope-name SCOPE
               [package/scaffold/publish options...] [--publish --repo NAME]
 
+The scaffold is a hand-written dummy (locally generated scopeId, never
+registered on any ServiceNow instance) -- see lib/scaffold.py's module
+docstring for why. No ServiceNow credentials are needed to run this tool.
+
 Examples:
     python3 d2ba.py convert BRD.docx --out ./package
     python3 d2ba.py scaffold ./package ./my-app --app-name "My App" \\
-        --scope-name x_snc_my_app --auth my-instance
+        --scope-name x_snc_my_app
     python3 d2ba.py pipeline BRD.docx --target-dir ./my-app \\
-        --app-name "My App" --scope-name x_snc_my_app --auth my-instance \\
+        --app-name "My App" --scope-name x_snc_my_app \\
         --publish --repo my-app --owner yourname
 """
 from __future__ import annotations
@@ -47,12 +50,11 @@ def cmd_convert(args):
 def cmd_scaffold(args):
     package_dir = Path(args.package_dir).expanduser().resolve()
     target_dir = Path(args.target_dir).expanduser().resolve()
-    env_path = Path(args.env).expanduser().resolve() if args.env else None
 
     scaffold_lib.create_fluent_scaffold(
         target_dir, args.app_name, args.scope_name,
         package_name=args.package_name, template=args.template,
-        auth_alias=args.auth, env_path=env_path, skip_install=args.skip_install,
+        skip_install=args.skip_install,
     )
     scaffold_lib.assemble_sidecar(package_dir, target_dir, guide_name=args.guide_name)
 
@@ -77,7 +79,6 @@ def cmd_publish(args):
 def cmd_pipeline(args):
     docx_path = Path(args.docx).expanduser().resolve()
     target_dir = Path(args.target_dir).expanduser().resolve()
-    env_path = Path(args.env).expanduser().resolve() if args.env else None
 
     if args.publish:
         if not args.repo:
@@ -94,7 +95,7 @@ def cmd_pipeline(args):
     scaffold_lib.create_fluent_scaffold(
         target_dir, args.app_name, args.scope_name,
         package_name=args.package_name, template=args.template,
-        auth_alias=args.auth, env_path=env_path, skip_install=args.skip_install,
+        skip_install=args.skip_install,
     )
     scaffold_lib.assemble_sidecar(package_dir, target_dir, guide_name=args.guide_name)
 

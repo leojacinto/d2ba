@@ -7,6 +7,19 @@ Build Agent has no upload API at the moment so this approach allows creating a r
 
 This is especially useful if the technical/functional specifications or business requirement document is in a document format that is too large to be consumed (Build Agent can query content up to 100K characters).
 
+> **Disclaimer: the scaffold is a dummy, not a registered app.** The Fluent project this tool
+> creates is hand-written to mirror the file structure `npx @servicenow/sdk init --template
+> typescript.basic` produces on **@servicenow/sdk 4.8.1**. It does not call `now-sdk init` and
+> never contacts a ServiceNow instance. The `scopeId` in `now.config.json` is a locally generated
+> random value, not one registered against any instance. Why: `now-sdk init` always tries to log
+> into an instance to register the scope, confirmed by testing (it does this even with no `--auth`
+> flag, falling back to whatever alias is marked default), and this scaffold only needs to look
+> and build like a real Fluent project for Build Agent to work with, not be a live app
+> registration. What's still genuine: `now-sdk build` (the actual compile/verify step) was
+> confirmed by testing to need zero instance contact and zero auth, so `--verify-build` is still
+> real SDK verification, not hand-approximated. No ServiceNow credentials are needed to run this
+> tool at all.
+
 > **Disclaimer: images are not solved by this tool.** Extracting screenshots to `images/` and
 > pushing them to git does **not** make Build Agent able to read them. No path exists through git,
 > the workspace file tree, MCP, or a table query that lets Build Agent decode an image file into
@@ -118,11 +131,13 @@ human clicking in a browser. There's no API for either step, so this tool can't 
 
 Things only you can provide, that `install.sh` can't get for you:
 
-- **A GitHub account.** `d2ba.py publish` pushes the scaffold+sidecar repo there. You then log in
-  with the same account to the ServiceNow IDE's Source Control view to clone that same repo into
-  the Fluent workspace.
-- **A ServiceNow instance with Build Agent installed and enabled**, with required roles assigned.
-  See Build Agent documentation in SN docs for more details.
+- **A GitHub account.** `d2ba.py publish` pushes the scaffold+sidecar repo there. Later, you log
+  in with the same account to the ServiceNow IDE's Source Control view to clone that repo into
+  the Fluent workspace. That's a manual step after this tool runs, not something `d2ba.py` itself
+  needs.
+- **A ServiceNow instance with Build Agent installed and enabled**, with required roles assigned,
+  for that same later manual step. `d2ba.py` itself never contacts any ServiceNow instance and
+  needs no ServiceNow credentials at all. See the scaffold disclaimer above.
 
 Everything else (pandoc, `gh` CLI, Node/Python versions, the packages) is handled by `install.sh`
 below. You don't need to know or install any of it yourself.
@@ -136,12 +151,8 @@ below. You don't need to know or install any of it yourself.
 That one command installs whatever's missing (pandoc, GitHub CLI, Python packages, checks
 Node is 20+), then runs `gh auth login` if you're not already logged in (this is the one step
 that needs you personally, it's an OAuth authorization in a browser, nothing can click that
-button for you), then lists your existing ServiceNow `now-sdk` auth aliases and tells you how to
-add one if you need to.
-
-Do this before running any `d2ba.py` command. `publish` will fail without GitHub login, and
-`scaffold`/`pipeline` will fail without a ServiceNow auth alias. Getting both sorted first means
-the actual pipeline run below goes straight through without stopping partway.
+button for you). That's the only credential this tool needs. Do it before running `publish` or
+`pipeline --publish`, since those will fail without it.
 
 ## Usage: your first run
 
@@ -151,12 +162,9 @@ want it turned into a Fluent app scaffold pushed to `github.com/yourname/widget-
 1. **Run setup once** (skip if already done): `./install.sh`.
 2. **Pick your values:**
    - `--app-name` is just a display name, e.g. `"Widget Catalog"`.
-   - `--scope-name` must start with your instance's company code and be under 18 characters, e.g.
-     `x_snc_widget_catalog` (check the code with a query against `glide.appcreator.company.code`
-     on your instance if you don't know it).
-   - `--auth` is a `now-sdk auth` alias for your ServiceNow instance. Run
-     `npx now-sdk auth --list` to see what you already have, or add `--env path/to/.env` (with
-     `SN_INSTANCE_URL`/`SN_USERNAME`/`SN_PASSWORD` in it) to register a new one automatically.
+   - `--scope-name` must be under 18 characters, e.g. `x_snc_widget_catalog`. It doesn't need to
+     match a real instance's company code since the scaffold is never registered anywhere. Any
+     `x_..._...` value that fits the length limit works.
    - `--repo` and `--owner` are the GitHub repo name and your GitHub username.
 3. **Run the whole pipeline in one command:**
    ```bash
@@ -164,7 +172,7 @@ want it turned into a Fluent app scaffold pushed to `github.com/yourname/widget-
        --target-dir ./widget-catalog-app \
        --app-name "Widget Catalog" \
        --scope-name x_snc_widget_catalog \
-       --auth my-instance --verify-build \
+       --verify-build \
        --publish --repo widget-catalog-app --owner yourname
    ```
 4. **What happens, in order:** it converts the docx (prints how many images/CSVs it found), scaffolds
@@ -184,29 +192,27 @@ Reference for running the steps individually instead of as one `pipeline` call.
 # 1. Convert a Word doc into a Build Agent upload package
 python3 d2ba.py convert BRD.docx --out ./package
 
-# 2. Scaffold a real Fluent app and merge the package into it as a sidecar
+# 2. Scaffold a dummy Fluent app and merge the package into it as a sidecar
 python3 d2ba.py scaffold ./package ./my-app \
-    --app-name "My App" --scope-name x_snc_my_app \
-    --auth my-instance --verify-build
+    --app-name "My App" --scope-name x_snc_my_app --verify-build
 
 # 3. Commit and push to GitHub (private by default)
 python3 d2ba.py publish ./my-app --repo my-app --owner yourname
 
 # All three in one shot
 python3 d2ba.py pipeline BRD.docx --target-dir ./my-app \
-    --app-name "My App" --scope-name x_snc_my_app \
-    --auth my-instance --verify-build \
+    --app-name "My App" --scope-name x_snc_my_app --verify-build \
     --publish --repo my-app --owner yourname
 ```
 
-`--auth` refers to a `now-sdk auth` alias (`npx now-sdk auth --list` to see yours). If you'd
-rather point at a project's `.env` (`SN_INSTANCE_URL`/`SN_USERNAME`/`SN_PASSWORD`) and have the
-alias registered automatically the first time, pass `--auth <new-alias-name> --env path/to/.env`.
+No `--auth`/`--env` flags exist anymore. `scaffold`/`pipeline` never contact a ServiceNow
+instance, so there's nothing to authenticate to. See the scaffold disclaimer near the top.
 
 ## What `scaffold` actually does
 
-1. Runs `npx @servicenow/sdk init --template typescript.basic` (or whichever template you pick).
-   This is a real scaffold, verified buildable, not hand-approximated.
+1. Hand-writes the same file structure `npx @servicenow/sdk init --template typescript.basic`
+   produces on `@servicenow/sdk 4.8.1`, with a locally generated `scopeId` (never registered on
+   any instance, see the disclaimer near the top for why).
 2. Renames the package's spec `.md` to `GUIDE_<name>.md` at the project root. This follows
    ServiceNow's own documented Build Agent grounding-file convention
    ([`build-agent-general-guidelines.md`](https://www.servicenow.com/docs/r/application-development/build-agent-general-guidelines.html)):
@@ -231,13 +237,6 @@ avoid, but if you're running `scaffold` and `publish` as separate steps (not `pi
 an existing repo, you're responsible for putting the scaffold inside a clone of that repo
 yourself first. `publish` alone won't do it for you: by the time it runs, `scaffold` has already
 written files into `--target-dir`, too late to clone into it safely.
-
-## Known side effect
-
-Every `scaffold`/`pipeline` run registers a new scope name on the target instance via
-`now-sdk init` (that's inherent to the SDK, not this tool). Test runs leave behind an unused
-scope registration. It's harmless, but clean it up on the instance if you're testing repeatedly
-with throwaway scope names.
 
 ## Manual step after this tool runs
 
